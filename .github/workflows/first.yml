@@ -3,6 +3,9 @@ name: first_workflow
 on: workflow_dispatch
 
 jobs:
+  # =========================
+  # CI JOB: BUILD + TEST + SONAR
+  # =========================
   build:
     runs-on: ubuntu-latest
 
@@ -30,7 +33,7 @@ jobs:
             /o:"krishna-puppala13" \
             /d:sonar.host.url="https://sonarcloud.io" \
             /d:sonar.login="$SONAR_TOKEN" \
-            /d:sonar.cs.cobertura.reportsPaths="**/TestResults/*/coverage.cobertura.xml" \
+            /d:sonar.cs.opencover.reportsPaths="**/TestResults/*/coverage.opencover.xml" \
             /d:sonar.coverage.exclusions="**/Program.cs,**/Startup.cs,**/Pages/*.cs,**/Pages/*.cshtml"
       # ---- SONAR BEGIN ----
 
@@ -41,7 +44,7 @@ jobs:
         run: dotnet build --no-restore
 
       - name: Test with coverage
-        run: dotnet test --no-build --collect:"XPlat Code Coverage"
+        run: dotnet test --no-build --collect:"XPlat Code Coverage;Format=opencover" --logger "trx"
 
       # ---- SONAR END ----
       - name: SonarCloud - End analysis
