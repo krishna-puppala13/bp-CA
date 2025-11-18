@@ -1,6 +1,8 @@
 ﻿using BPCalculator;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 
 namespace BPUnitTests
 {
@@ -72,7 +74,7 @@ namespace BPUnitTests
             Assert.AreEqual(BPCategory.Ideal, bp.Category);
         }
 
-        // Low when below ideal ranges (but still within allowed min values)
+        // Low when below ideal ranges (both systolic and diastolic below ideal)
         [TestMethod]
         public void Category_Low_When_Below_Ideal()
         {
@@ -84,7 +86,40 @@ namespace BPUnitTests
 
             Assert.AreEqual(BPCategory.Low, bp.Category);
         }
-        
-               
+
+        // EXTRA LOW BRANCH:
+        // Low when systolic < 90 but diastolic is in the normal (ideal) diastolic range
+        [TestMethod]
+        public void Category_Low_When_Systolic_Low_But_Diastolic_Normal()
+        {
+            var bp = new BloodPressure
+            {
+                Systolic = 85,   // below 90
+                Diastolic = 75   // inside 60–79
+            };
+
+            Assert.AreEqual(BPCategory.Low, bp.Category);
+        }
+
+        // VALIDATION: fails when Systolic <= Diastolic (custom IValidatableObject rule)
+        [TestMethod]
+        public void Validation_Fails_When_Systolic_Less_Or_Equal_Diastolic()
+        {
+            var bp = new BloodPressure
+            {
+                Systolic = 90,
+                Diastolic = 100
+            };
+
+            var context = new ValidationContext(bp);
+            var results = new List<ValidationResult>();
+            bool isValid = Validator.TryValidateObject(bp, context, results, true);
+
+            Assert.IsFalse(isValid, "Expected validation to fail when Systolic <= Diastolic.");
+            Assert.IsTrue(results.Exists(r =>
+                r.ErrorMessage.Contains("Systolic value must be greater than Diastolic value")),
+                "Expected custom validation message for systolic/diastolic rule.");
+        }
+
     }
 }
