@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 
@@ -7,13 +8,13 @@ namespace BPCalculator
     // BP categories
     public enum BPCategory
     {
-        [Display(Name="Low Blood Pressure")] Low,
-        [Display(Name="Ideal Blood Pressure")]  Ideal,
-        [Display(Name="Pre-High Blood Pressure")] PreHigh,
-        [Display(Name ="High Blood Pressure")]  High
+        [Display(Name = "Low Blood Pressure")] Low,
+        [Display(Name = "Ideal Blood Pressure")] Ideal,
+        [Display(Name = "Pre-High Blood Pressure")] PreHigh,
+        [Display(Name = "High Blood Pressure")] High
     };
 
-    public class BloodPressure
+    public class BloodPressure : IValidatableObject
     {
         public const int SystolicMin = 70;
         public const int SystolicMax = 190;
@@ -26,14 +27,24 @@ namespace BPCalculator
         [Range(DiastolicMin, DiastolicMax, ErrorMessage = "Invalid Diastolic Value")]
         public int Diastolic { get; set; }                      // mmHG
 
+        // Custom validation: systolic must be greater than diastolic
+        public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+        {
+            if (Systolic <= Diastolic)
+            {
+                yield return new ValidationResult(
+                    "Systolic value must be greater than Diastolic value",
+                     new string[] { }
+                );
+            }
+        }
+
         // calculate BP category
         public BPCategory Category
         {
             get
             {
-                if (Systolic <= Diastolic)
-                    throw new InvalidOperationException("Systolic must be greater than Diastolic");
-
+                
 
                 if (Systolic >= 140 || Diastolic >= 90)
                     return BPCategory.High;

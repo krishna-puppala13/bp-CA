@@ -1,0 +1,55 @@
+name: first_workflow
+
+on: workflow_dispatch
+
+jobs:
+  # =========================
+  # CI JOB: BUILD + TEST + SONAR
+  # =========================
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Install SonarScanner for .NET
+        run: |
+          dotnet tool install --global dotnet-sonarscanner
+          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+
+      # ---- SONAR BEGIN ----
+      - name: SonarCloud - Begin analysis
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          dotnet sonarscanner begin \
+            /k:"krishna-puppala13_bp-CA" \
+            /o:"krishna-puppala13" \
+            /d:sonar.host.url="https://sonarcloud.io" \
+            /d:sonar.login="$SONAR_TOKEN" \
+            /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml" \
+            /d:sonar.coverage.exclusions="**/Program.cs,**/Startup.cs,**/Pages/*.cs,**/Pages/*.cshtml"
+
+      # ---- SONAR BEGIN ----
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore
+
+      - name: Test with coverage
+        run: dotnet test --no-build /p:CollectCoverage=true /p:CoverletOutput=TestResults/coverage/coverage /p:CoverletOutputFormat=opencover
+
+      # ---- SONAR END ----
+      - name: SonarCloud - End analysis
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: dotnet sonarscanner end /d:sonar.login="$SONAR_TOKEN"
+      # ---- SONAR END ----
