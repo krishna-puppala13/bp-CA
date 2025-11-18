@@ -3,9 +3,6 @@ name: first_workflow
 on: workflow_dispatch
 
 jobs:
-  # =========================
-  # CI JOB: BUILD + TEST + SONAR
-  # =========================
   build:
     runs-on: ubuntu-latest
 
@@ -33,9 +30,8 @@ jobs:
             /o:"krishna-puppala13" \
             /d:sonar.host.url="https://sonarcloud.io" \
             /d:sonar.login="$SONAR_TOKEN" \
-            /d:sonar.cs.opencover.reportsPaths="**/coverage/coverage.opencover.xml" \
+            /d:sonar.cs.opencover.reportsPaths="BPUnitTests/TestResults/*/coverage.opencover.xml" \
             /d:sonar.coverage.exclusions="**/Program.cs,**/Startup.cs,**/Pages/*.cs,**/Pages/*.cshtml"
-
       # ---- SONAR BEGIN ----
 
       - name: Restore dependencies
@@ -45,7 +41,7 @@ jobs:
         run: dotnet build --no-restore
 
       - name: Test with coverage
-        run: dotnet test --no-build /p:CollectCoverage=true /p:CoverletOutput=TestResults/coverage/coverage /p:CoverletOutputFormat=opencover
+        run: dotnet test BPUnitTests/BPUnitTests.csproj --no-build --collect:"XPlat Code Coverage" --logger "trx"
 
       # ---- SONAR END ----
       - name: SonarCloud - End analysis
