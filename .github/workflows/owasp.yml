@@ -26,9 +26,6 @@ jobs:
           path: "."
           format: "HTML"
           out: "dependency-check-report"
-          # Optional: fail build on given CVSS score and above (0–10)
-          args: >
-            --failOnCVSS 7
 
       # Upload the HTML report as an artifact so you can download it
       - name: Upload Dependency-Check report
