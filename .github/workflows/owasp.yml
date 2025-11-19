@@ -24,7 +24,7 @@ jobs:
         with:
           project: "bp"
           path: "."
-          format: "HTML,XML"
+          format: "HTML"
           out: "dependency-check-report"
           # Optional: fail build on given CVSS score and above (0–10)
           args: >
