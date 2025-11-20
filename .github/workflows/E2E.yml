@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      # URL that your E2E tests will hit
+
       BASE_URL: "http://localhost:5000"
 
     steps:
@@ -26,7 +26,17 @@ jobs:
       - name: Build solution (Release)
         run: dotnet build --no-restore -c Release
 
-      # ---- Start the web app ----
+      # ---------- Cache Playwright browsers ----------
+      - name: Cache Playwright browsers
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('**/playwright.ps1') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+      # ------------------------------------------------
+
+      # ---------- Start the web app ----------
       - name: Start BPCalculator web app
         run: |
           dotnet run --project BPCalculator/BPCalculator.csproj --configuration Release --urls "http://localhost:5000" &
@@ -41,15 +51,18 @@ jobs:
           done
           echo "App failed to start in time"
           exit 1
+      # ---------------------------------------
 
-      # ---- Install Playwright browsers ----
+      # ---------- Install Playwright browsers ----------
       - name: Install Playwright browsers
         working-directory: BP_E2E
         run: |
           dotnet build -c Release
           pwsh ./bin/Release/net8.0/playwright.ps1 install --with-deps
+      # -------------------------------------------------
 
-      # ---- Run ONLY E2E tests ----
+      # ---------- Run ONLY E2E tests ----------
       - name: Run Playwright E2E tests
         working-directory: BP_E2E
         run: dotnet test -c Release --no-build --filter "Category=E2E"
+      # ---------------------------------------
