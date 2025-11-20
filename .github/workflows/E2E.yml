@@ -1,0 +1,55 @@
+name: e2e_playwright_tests
+
+on:
+  workflow_dispatch:   
+
+jobs:
+  e2e-tests:
+    runs-on: ubuntu-latest
+
+    env:
+      # URL that your E2E tests will hit
+      BASE_URL: "http://localhost:5000"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build solution (Release)
+        run: dotnet build --no-restore -c Release
+
+      # ---- Start the web app ----
+      - name: Start BPCalculator web app
+        run: |
+          dotnet run --project BPCalculator/BPCalculator.csproj --configuration Release --urls "http://localhost:5000" &
+          echo "Waiting for app to start..."
+          for i in {1..30}; do
+            if curl -sSf http://localhost:5000 > /dev/null; then
+              echo "App is up!"
+              exit 0
+            fi
+            echo "Still waiting..."
+            sleep 2
+          done
+          echo "App failed to start in time"
+          exit 1
+
+      # ---- Install Playwright browsers ----
+      - name: Install Playwright browsers
+        working-directory: BP_E2E
+        run: |
+          dotnet build -c Release
+          pwsh ./bin/Release/net8.0/playwright.ps1 install --with-deps
+
+      # ---- Run ONLY E2E tests ----
+      - name: Run Playwright E2E tests
+        working-directory: BP_E2E
+        run: dotnet test -c Release --no-build --filter "Category=E2E"

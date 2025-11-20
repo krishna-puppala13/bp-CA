@@ -16,7 +16,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 9.0.x
+          dotnet-version: 8.0.x
 
       - name: Install SonarScanner for .NET
         run: |
@@ -44,7 +44,7 @@ jobs:
         run: dotnet build --no-restore
 
       - name: Test with coverage
-        run: dotnet test --no-build --collect:"XPlat Code Coverage;Format=opencover" --logger "trx"
+        run: dotnet test --no-build --collect:"XPlat Code Coverage;Format=opencover" --logger "trx" --filter "TestCategory!=E2E"
 
       # ---- SONAR END ----
       - name: SonarCloud - End analysis
