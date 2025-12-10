@@ -118,7 +118,7 @@ namespace BDDTest.Features
         
         private static global::Reqnroll.Formatters.RuntimeSupport.FeatureLevelCucumberMessages InitializeCucumberMessages()
         {
-            return new global::Reqnroll.Formatters.RuntimeSupport.FeatureLevelCucumberMessages("Features/Calculator.feature.ndjson", 8);
+            return new global::Reqnroll.Formatters.RuntimeSupport.FeatureLevelCucumberMessages("Features/Calculator.feature.ndjson", 9);
         }
         
         [global::Microsoft.VisualStudio.TestTools.UnitTesting.TestMethodAttribute("Ideal blood pressure")]
@@ -341,6 +341,47 @@ namespace BDDTest.Features
 #line hidden
 #line 40
     await testRunner.AndAsync("it should contain \"Systolic value must be greater than Diastolic value\"", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
+#line hidden
+            }
+            await this.ScenarioCleanupAsync();
+        }
+        
+        [global::Microsoft.VisualStudio.TestTools.UnitTesting.TestMethodAttribute("Advice message for ideal blood pressure")]
+        [global::Microsoft.VisualStudio.TestTools.UnitTesting.DescriptionAttribute("Advice message for ideal blood pressure")]
+        [global::Microsoft.VisualStudio.TestTools.UnitTesting.TestPropertyAttribute("FeatureTitle", "Blood pressure classification")]
+        public async global::System.Threading.Tasks.Task AdviceMessageForIdealBloodPressure()
+        {
+            string[] tagsOfScenario = ((string[])(null));
+            global::System.Collections.Specialized.OrderedDictionary argumentsOfScenario = new global::System.Collections.Specialized.OrderedDictionary();
+            string pickleIndex = "6";
+            global::Reqnroll.ScenarioInfo scenarioInfo = new global::Reqnroll.ScenarioInfo("Advice message for ideal blood pressure", null, tagsOfScenario, argumentsOfScenario, featureTags, pickleIndex);
+            string[] tagsOfRule = ((string[])(null));
+            global::Reqnroll.RuleInfo ruleInfo = null;
+#line 42
+  this.ScenarioInitialize(scenarioInfo, ruleInfo);
+#line hidden
+            if ((global::Reqnroll.TagHelper.ContainsIgnoreTag(scenarioInfo.CombinedTags) || global::Reqnroll.TagHelper.ContainsIgnoreTag(featureTags)))
+            {
+                await testRunner.SkipScenarioAsync();
+            }
+            else
+            {
+                await this.ScenarioStartAsync();
+#line 43
+    await testRunner.GivenAsync("a systolic value of 110", ((string)(null)), ((global::Reqnroll.Table)(null)), "Given ");
+#line hidden
+#line 44
+    await testRunner.AndAsync("a diastolic value of 70", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
+#line hidden
+#line 45
+    await testRunner.WhenAsync("I check the category", ((string)(null)), ((global::Reqnroll.Table)(null)), "When ");
+#line hidden
+#line 46
+    await testRunner.ThenAsync("the category should be \"Ideal Blood Pressure\"", ((string)(null)), ((global::Reqnroll.Table)(null)), "Then ");
+#line hidden
+#line 47
+    await testRunner.AndAsync("the advice message should be \"Your blood pressure is ideal. Maintain a healthy li" +
+                        "festyle!\"", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
             }
             await this.ScenarioCleanupAsync();
