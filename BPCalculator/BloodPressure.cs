@@ -74,9 +74,8 @@ namespace BPCalculator
                         return "Your reading is slightly elevated. Consider reducing salt intake and managing stress.";
                     case BPCategory.High:
                         return "Your blood pressure is high. Please consult a healthcare professional.";
-                    default:
-                        return string.Empty;
                 }
+                return string.Empty;
             }
         }
     }
