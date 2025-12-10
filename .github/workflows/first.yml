@@ -34,7 +34,7 @@ jobs:
             /d:sonar.host.url="https://sonarcloud.io" \
             /d:sonar.login="$SONAR_TOKEN" \
             /d:sonar.cs.opencover.reportsPaths="**/TestResults/*/coverage.opencover.xml" \
-            /d:sonar.coverage.exclusions="**/Program.cs,**/Startup.cs,**/Pages/*.cs,**/Pages/*.cshtml"
+            /d:sonar.coverage.exclusions="**/Program.cs,**/Startup.cs,**/Pages/*.cs,**/Pages/*.cshtml,**/performance.js"
       # ---- SONAR BEGIN ----
 
       - name: Restore dependencies

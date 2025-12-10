@@ -65,6 +65,13 @@ namespace BPCalculator.ReqnrollTests
             string messages = string.Join(" | ", _validationResults);
             StringAssert.Contains(messages, message);
         }
+        
+        [Then(@"the advice message should be ""(.*)""")]
+        public void ThenTheAdviceMessageShouldBe(string expected)
+        {
+            // Advice is derived from the BP reading
+            Assert.AreEqual(expected, _bp.AdviceMessage);
+        }
 
         private string GetDisplayName(BPCategory category)
         {

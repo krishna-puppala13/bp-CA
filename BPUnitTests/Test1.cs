@@ -100,6 +100,68 @@ namespace BPUnitTests
             Assert.AreEqual(BPCategory.Low, bp.Category);
         }
 
+        // -------- AdviceMessage tests --------
+
+        // for Low category
+        [TestMethod]
+        public void AdviceMessage_For_Low_Category()
+        {
+            var bp = new BloodPressure
+            {
+                Systolic = 85,
+                Diastolic = 55
+            };
+
+            Assert.AreEqual(
+                "Your blood pressure is low. Increase fluids and seek medical advice if symptoms occur.",
+                bp.AdviceMessage);
+        }
+
+        // for Ideal category
+        [TestMethod]
+        public void AdviceMessage_For_Ideal_Category()
+        {
+            var bp = new BloodPressure
+            {
+                Systolic = 110,
+                Diastolic = 70
+            };
+
+            Assert.AreEqual(
+                "Your blood pressure is ideal. Maintain a healthy lifestyle!",
+                bp.AdviceMessage);
+        }
+
+        //for PreHigh category
+        [TestMethod]
+        public void AdviceMessage_For_PreHigh_Category()
+        {
+            var bp = new BloodPressure
+            {
+                Systolic = 125,
+                Diastolic = 70
+            };
+
+            Assert.AreEqual(
+                "Your reading is slightly elevated. Consider reducing salt intake and managing stress.",
+                bp.AdviceMessage);
+        }
+
+        //for High category
+        [TestMethod]
+        public void AdviceMessage_For_High_Category()
+        {
+            var bp = new BloodPressure
+            {
+                Systolic = 150,
+                Diastolic = 95
+            };
+
+            Assert.AreEqual(
+                "Your blood pressure is high. Please consult a healthcare professional.",
+                bp.AdviceMessage);
+        }
+
         // VALIDATION: fails when Systolic <= Diastolic (custom IValidatableObject rule)
         [TestMethod]
         public void Validation_Fails_When_Systolic_Less_Or_Equal_Diastolic()
@@ -119,6 +181,5 @@ namespace BPUnitTests
                 r.ErrorMessage.Contains("Systolic value must be greater than Diastolic value")),
                 "Expected custom validation message for systolic/diastolic rule.");
         }
-
     }
 }
