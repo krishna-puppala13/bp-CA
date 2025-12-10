@@ -22,7 +22,7 @@ namespace BPUnitTests
             Assert.AreEqual(BPCategory.High, bp.Category);
         }
 
-        // High due to diastolic >= 90 (even if systolic not high)
+        // High due to diastolic >= 90 
         [TestMethod]
         public void Category_High_When_Diastolic_High()
         {
@@ -87,7 +87,6 @@ namespace BPUnitTests
             Assert.AreEqual(BPCategory.Low, bp.Category);
         }
 
-        // EXTRA LOW BRANCH:
         // Low when systolic < 90 but diastolic is in the normal (ideal) diastolic range
         [TestMethod]
         public void Category_Low_When_Systolic_Low_But_Diastolic_Normal()

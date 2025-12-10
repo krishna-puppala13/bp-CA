@@ -1,0 +1,47 @@
+name: k6 Performance Test
+
+on:
+  workflow_dispatch:   
+
+jobs:
+  k6_test:
+    runs-on: ubuntu-latest
+
+    steps:
+      
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Build and Run BP App
+        run: |
+          cd BPCalculator
+          dotnet restore
+          dotnet build --configuration Release
+          dotnet run --configuration Release --urls "http://0.0.0.0:5000" &
+          sleep 15   # Let the app start
+
+      - name: Install k6
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnupg ca-certificates
+          curl https://dl.k6.io/key.gpg | sudo gpg --yes --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6
+
+      - name: Run k6 Performance Test
+        env:
+          BASE_URL: http://127.0.0.1:5000
+        run: |
+          k6 run k6Tests/performance.js | tee k6report.txt
+
+      - name: Upload k6 Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-performance-report
+          path: k6report.txt

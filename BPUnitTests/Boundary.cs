@@ -11,9 +11,9 @@ namespace BPCalculatorTests
     {
 
 
-        // ----- Category: High -----
+        // Category: High 
 
-        // High due to systolic >= 140 (left side of ||)
+        // High due to systolic >= 140 
         [TestMethod]
         public void Category_High_When_Systolic_At_Boundary_140()
         {
@@ -26,7 +26,7 @@ namespace BPCalculatorTests
             Assert.AreEqual(BPCategory.High, bp.Category);
         }
 
-        // High due to diastolic >= 90 (right side of ||)
+        // High due to diastolic >= 90 
         [TestMethod]
         public void Category_High_When_Diastolic_At_Boundary_90()
         {
@@ -39,7 +39,7 @@ namespace BPCalculatorTests
             Assert.AreEqual(BPCategory.High, bp.Category);
         }
 
-        // ----- Category: PreHigh -----
+        //  Category: PreHigh 
 
         // PreHigh because systolic in [120,139] and diastolic < 80
         [TestMethod]
@@ -67,7 +67,7 @@ namespace BPCalculatorTests
             Assert.AreEqual(BPCategory.PreHigh, bp.Category);
         }
 
-        // ----- Category: Ideal -----
+        // Category: Ideal
 
         // Ideal when both systolic and diastolic are in ideal range
         [TestMethod]
@@ -95,7 +95,7 @@ namespace BPCalculatorTests
             Assert.AreEqual(BPCategory.Ideal, bp.Category);
         }
 
-        // ----- Category: Low -----
+        // Category: Low 
 
         // Low when below ideal ranges but still within allowed minima
         [TestMethod]
@@ -123,7 +123,7 @@ namespace BPCalculatorTests
             Assert.AreEqual(BPCategory.Low, bp.Category);
         }
 
-        // ----- Validation attribute tests (Range on Systolic/Diastolic) -----
+        //  Validation attribute tests (Range on Systolic/Diastolic) 
 
         private static bool TryValidate(BloodPressure bp, out List<ValidationResult> results)
         {

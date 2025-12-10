@@ -27,7 +27,7 @@ namespace BPCalculator
         [Range(DiastolicMin, DiastolicMax, ErrorMessage = "Invalid Diastolic Value")]
         public int Diastolic { get; set; }                      // mmHG
 
-        // Custom validation: systolic must be greater than diastolic
+        // validation: systolic must be greater than diastolic
         public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
         {
             if (Systolic <= Diastolic)

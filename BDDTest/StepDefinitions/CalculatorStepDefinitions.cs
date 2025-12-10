@@ -78,7 +78,6 @@ namespace BPCalculator.ReqnrollTests
                 }
             }
 
-            // Fallback – never null
             return category.ToString();
         }
 

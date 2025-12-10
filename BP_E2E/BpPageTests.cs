@@ -27,7 +27,7 @@ namespace BP_E2E
 
             await Page.ClickAsync("input[type='submit']");
 
-            // Check that the whole page contains "Ideal Blood Pressure"
+            // Checking that the page contains "Ideal Blood Pressure"
             var body = Page.Locator("body");
             await Expect(body).ToContainTextAsync("Ideal Blood Pressure");
         }
