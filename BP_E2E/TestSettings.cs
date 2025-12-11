@@ -11,6 +11,6 @@ namespace BP_E2E
         
         public static string BaseUrl =>
             Environment.GetEnvironmentVariable("BASE_URL")
-            ?? "http://localhost:53135"; 
+            ?? "http://localhost:5000"; 
     }
 }
