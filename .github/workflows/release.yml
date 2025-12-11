@@ -1,13 +1,20 @@
-name: Build, test, and deploy BP app
+name: Release
 
 on:
   push:
     branches:
       - develop
-      - main
+      - master
 
+env:
+  QA_APP_NAME: bp-qa
+  QA_URL: https://bp-qa.azurewebsites.net
+  PROD_APP_NAME: bp-ca-prod
+  PROD_URL: https://bp-ca-prod.azurewebsites.net
+
+# Build + Tests
 jobs:
-  build_and_package:
+  build_and_prechecks:
     runs-on: ubuntu-latest
 
     steps:
@@ -22,7 +29,8 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore
 
-      
+      # OWASP DEPENDENCY CHECK
+
       - name: Cache Dependency-Check data
         uses: actions/cache@v4
         with:
@@ -45,98 +53,18 @@ jobs:
           name: dependency-check-report
           path: dependency-check-report
 
-      
+     
+      # BUILD
+
       - name: Build solution
         run: dotnet build -c Release --no-restore
 
-      
-      - name: Start BPCalculator web app
-        run: |
-          dotnet run --project BPCalculator/BPCalculator.csproj --urls "http://0.0.0.0:5000" &
-          echo "Waiting for app to start..."
+    
+      # UNIT + BDD TESTS 
 
-          for i in {1..30}; do
-            if curl -sSf http://127.0.0.1:5000 > /dev/null; then
-              echo "App is up!"
-              exit 0
-            fi
-            echo "Still waiting..."
-            sleep 2
-          done
-
-          echo "App failed to start in time"
-          exit 1
-
-      
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-cache
-          restore-keys: |
-            ${{ runner.os }}-playwright-cache
-
-      
-      - name: Install Playwright browsers
-        working-directory: BP_E2E
-        run: |
-          dotnet build -c Release
-          pwsh ./bin/Release/net8.0/playwright.ps1 install --with-deps
-
-      
-      - name: Run Unit Tests
+      - name: Run Unit + BDD tests
         run: dotnet test -c Release --no-build --filter TestCategory!=E2E
 
-      
-      - name: Run Playwright E2E tests
-        working-directory: BP_E2E
-        run: dotnet test -c Release --no-build --filter "Category=E2E"
-
-      
-      - name: Install k6
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gnupg ca-certificates
-          curl https://dl.k6.io/key.gpg | sudo gpg --yes --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
-          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
-          sudo apt-get update
-          sudo apt-get install -y k6
-
-      
-      - name: Run k6 Performance Test
-        env:
-          BASE_URL: http://127.0.0.1:5000
-        run: |
-          k6 run k6Tests/performance.js | tee k6report.txt
-
-      - name: Upload k6 Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: k6-performance-report
-          path: k6report.txt
-
-      
-      - name: Prepare ZAP report directory
-        run: |
-          mkdir -p zap-report
-          chmod 777 zap-report
-
-      
-      - name: OWASP ZAP Baseline Scan 
-        continue-on-error: true   
-        run: |
-          docker run --network="host" \
-            -v "$PWD/zap-report:/zap/wrk/:rw" \
-            -t ghcr.io/zaproxy/zaproxy:stable \
-            zap-baseline.py -t http://127.0.0.1:5000 -r zap-report.html -a || true
-
-      - name: Upload ZAP Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: zap-report
-          path: zap-report
-
-     
       - name: Publish Application
         run: dotnet publish BPCalculator/BPCalculator.csproj -c Release -o ./publish
 
@@ -146,10 +74,10 @@ jobs:
           name: bpapp
           path: ./publish
 
-  
+#  DEPLOY TO QA 
   deploy_qa:
-    needs: build_and_package
-    if: github.ref == 'refs/heads/develop'
+    needs: build_and_prechecks
+    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: qa
 
@@ -163,19 +91,109 @@ jobs:
       - name: Deploy to QA Web App
         uses: azure/webapps-deploy@v3
         with:
-          app-name: 'bp-qa'  
+          app-name: ${{ env.QA_APP_NAME }}
           slot-name: 'Production'
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_QA }}
           package: ./publish
 
-  
+#  QA TESTS
+  qa_tests:
+    needs: deploy_qa
+    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    env:
+      QA_URL: ${{ env.QA_URL }}
+      BASE_URL: ${{ env.QA_URL }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+     
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-cache
+          restore-keys: |
+            ${{ runner.os }}-playwright-cache
+
+    
+      - name: Install Playwright browsers
+        working-directory: BP_E2E
+        run: |
+          dotnet build -c Release
+          pwsh ./bin/Release/net8.0/playwright.ps1 install --with-deps
+
+      
+      - name: Run Playwright E2E tests against QA
+        working-directory: BP_E2E
+        env:
+          BASE_URL: ${{ env.BASE_URL }}
+        run: dotnet test -c Release --no-build --filter "Category=E2E"
+
+     
+      - name: Install k6
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnupg ca-certificates
+          curl https://dl.k6.io/key.gpg | sudo gpg --yes --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6
+
+     
+      - name: Run k6 Performance Test against QA
+        env:
+          BASE_URL: ${{ env.BASE_URL }}
+        run: |
+          k6 run k6Tests/performance.js | tee k6report.txt
+
+      - name: Upload k6 Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-performance-report
+          path: k6report.txt
+
+     
+      - name: Prepare ZAP report directory
+        run: |
+          mkdir -p zap-report
+          chmod 777 zap-report
+
+      
+      - name: OWASP ZAP Baseline Scan (Docker vs QA URL)
+        continue-on-error: true  
+        env:
+          TARGET_URL: ${{ env.QA_URL }}
+        run: |
+          docker run \
+            -v "$PWD/zap-report:/zap/wrk/:rw" \
+            -t ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py -t "$TARGET_URL" -r zap-report.html -a || true
+
+      - name: Upload ZAP Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-report
+          path: zap-report
+
+#  DEPLOY TO PROD 
   deploy_prod:
-    needs: build_and_package
+    needs: 
+      - build_and_prechecks
+      - qa_tests
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment:
-      name: prod
-      url: https://bp-ca-prod.azurewebsites.net  
+      name: prod          
+      url: ${{ env.PROD_URL }}
 
     steps:
       - name: Download Artifact
@@ -187,7 +205,7 @@ jobs:
       - name: Deploy to Production Web App
         uses: azure/webapps-deploy@v3
         with:
-          app-name: 'bp-ca-prod'  
+          app-name: ${{ env.PROD_APP_NAME }}
           slot-name: 'Production'
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_PROD }}
           package: ./publish
