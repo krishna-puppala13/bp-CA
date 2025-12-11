@@ -1,0 +1,213 @@
+name: CI-CD
+
+on:
+  workflow_dispatch:   
+
+env:
+  PROD_APP_NAME: bp-app-prod
+  PROD_URL: https://bp-app-prod.azurewebsites.net
+  STAGING_SLOT_NAME: staging
+  STAGING_URL: https://bp-app-prod-staging.azurewebsites.net   
+  RESOURCE_GROUP: bp-ca
+
+#  BUILD + Tests
+jobs:
+  build_and_prechecks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      
+      # OWASP DEPENDENCY CHECK
+     
+      - name: Cache Dependency-Check data
+        uses: actions/cache@v4
+        with:
+          path: ~/.dependency-check
+          key: ${{ runner.os }}-dependency-check
+          restore-keys: |
+            ${{ runner.os }}-dependency-check
+
+      - name: Run OWASP Dependency-Check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: "bp"
+          path: "."
+          format: "HTML"
+          out: "dependency-check-report"
+
+      - name: Upload Dependency-Check report
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-report
+          path: dependency-check-report
+
+      
+      # BUILD
+      
+      - name: Build solution
+        run: dotnet build -c Release --no-restore
+
+      
+      # UNIT + BDD TESTS 
+      - name: Run Unit + BDD tests
+        run: dotnet test -c Release --no-build --filter TestCategory!=E2E
+
+     
+      # PUBLISH  + ARTIFACT
+
+      - name: Publish Application
+        run: dotnet publish BPCalculator/BPCalculator.csproj -c Release -o ./publish
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bpapp
+          path: ./publish
+
+#  DEPLOY TO STAGING SLOT (GREEN) — for both develop and master
+  deploy_staging:
+    needs: build_and_prechecks
+    runs-on: ubuntu-latest
+   
+    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/master'
+    environment: staging   
+
+    steps:
+      - name: Download Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: bpapp
+          path: ./publish
+
+      - name: Deploy to Staging Slot
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.PROD_APP_NAME }}          
+          slot-name: ${{ env.STAGING_SLOT_NAME }}     
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_STAGING }}
+          package: ./publish
+
+#  STAGING TESTS: E2E + k6 + ZAP against STAGING_URL
+  staging_tests:
+    needs: deploy_staging
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/master'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-cache
+          restore-keys: |
+            ${{ runner.os }}-playwright-cache
+
+     
+      # INSTALL PLAYWRIGHT BROWSERS
+      
+      - name: Install Playwright browsers
+        working-directory: BP_E2E
+        run: |
+          dotnet build -c Release
+          pwsh ./bin/Release/net8.0/playwright.ps1 install --with-deps
+
+      
+      # E2E TESTS 
+      - name: Run Playwright E2E tests against Staging
+        working-directory: BP_E2E
+        env:
+          BASE_URL: ${{ env.STAGING_URL }}
+        run: dotnet test -c Release --no-build --filter "Category=E2E"
+
+     
+      - name: Install k6
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnupg ca-certificates
+          curl https://dl.k6.io/key.gpg | sudo gpg --yes --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6
+
+   
+      # k6 PERFORMANCE TESTS 
+      - name: Run k6 Performance Test against Staging
+        env:
+          BASE_URL: ${{ env.STAGING_URL }}
+        run: |
+          k6 run k6Tests/performance.js | tee k6report.txt
+
+      - name: Upload k6 Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-performance-report
+          path: k6report.txt
+
+  
+      - name: Prepare ZAP report directory
+        run: |
+          mkdir -p zap-report
+          chmod 777 zap-report
+
+    
+      # OWASP ZAP BASELINE 
+      - name: OWASP ZAP Baseline Scan (Docker vs Staging URL)
+        continue-on-error: true  
+        env:
+          TARGET_URL: ${{ env.STAGING_URL }}
+        run: |
+          docker run \
+            -v "$PWD/zap-report:/zap/wrk/:rw" \
+            -t ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py -t "$TARGET_URL" -r zap-report.html -a || true
+
+      - name: Upload ZAP Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-report
+          path: zap-report
+
+#  BLUE-GREEN: SLOT SWAP TO PROD — only on master, after staging tests, with manual approval
+  swap_staging_to_prod:
+    needs:
+      - build_and_prechecks
+      - staging_tests
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master'
+    environment:
+      name: prod          
+      url: ${{ env.PROD_URL }}
+
+    steps:
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Swap staging slot with production
+        run: |
+          az webapp deployment slot swap \
+            -n ${{ env.PROD_APP_NAME }} \
+            -g ${{ env.RESOURCE_GROUP }} \
+            --slot ${{ env.STAGING_SLOT_NAME }} \
+            --target-slot production
