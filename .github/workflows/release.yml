@@ -73,7 +73,7 @@ jobs:
 # Deploy to QA
   deploy_qa:
     needs: build_and_prechecks
-    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     environment: qa
 
@@ -95,7 +95,7 @@ jobs:
 
   qa_tests:
     needs: deploy_qa
-    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
 
     steps:
@@ -181,7 +181,7 @@ jobs:
     needs:
       - build_and_prechecks
       - qa_tests
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     environment:
       name: prod          
