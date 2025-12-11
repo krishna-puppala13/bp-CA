@@ -1,10 +1,10 @@
-name: Release
+name: Build, test, and deploy BP app
 
 on:
   push:
     branches:
       - develop
-      - master
+      - main
 
 jobs:
   build_and_package:
@@ -45,7 +45,7 @@ jobs:
           name: dependency-check-report
           path: dependency-check-report
 
-     
+      
       - name: Build solution
         run: dotnet build -c Release --no-restore
 
@@ -102,7 +102,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y k6
 
-     
+      
       - name: Run k6 Performance Test
         env:
           BASE_URL: http://127.0.0.1:5000
@@ -116,11 +116,17 @@ jobs:
           path: k6report.txt
 
       
-      - name: OWASP ZAP Baseline Scan (Docker)
-        continue-on-error: false   
+      - name: Prepare ZAP report directory
+        run: |
+          mkdir -p zap-report
+          chmod 777 zap-report
+
+      
+      - name: OWASP ZAP Baseline Scan 
+        continue-on-error: true   
         run: |
           docker run --network="host" \
-            -v "$PWD":/zap/wrk/:rw \
+            -v "$PWD/zap-report:/zap/wrk/:rw" \
             -t ghcr.io/zaproxy/zaproxy:stable \
             zap-baseline.py -t http://127.0.0.1:5000 -r zap-report.html -a || true
 
@@ -128,15 +134,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: zap-report
-          path: zap-report.html  
-
-      - name: Upload ZAP Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: zap-report
           path: zap-report
 
-      
+     
       - name: Publish Application
         run: dotnet publish BPCalculator/BPCalculator.csproj -c Release -o ./publish
 
