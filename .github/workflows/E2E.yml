@@ -1,36 +1,46 @@
-name: Release
+name: e2e_playwright_tests
 
 on:
-  push:
-    branches:
-      - develop
-      - main
+  workflow_dispatch:   
 
 jobs:
-  build_and_package:
+  e2e-tests:
     runs-on: ubuntu-latest
+
+    env:
+
+      BASE_URL: "http://localhost:5000"
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup .NET
+      - name: Setup .NET 8 SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: 8.0.x
 
       - name: Restore dependencies
         run: dotnet restore
 
-      - name: Build solution
-        run: dotnet build -c Release --no-restore
+      - name: Build solution (Release)
+        run: dotnet build --no-restore -c Release
 
-    
+      # ---------- Cache Playwright browsers ----------
+      - name: Cache Playwright browsers
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('**/playwright.ps1') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+      # ------------------------------------------------
+
+      # ---------- Start the web app ----------
       - name: Start BPCalculator web app
         run: |
-          dotnet run --project BPCalculator/BPCalculator.csproj --urls "http://localhost:5000" &
+          dotnet run --project BPCalculator/BPCalculator.csproj --configuration Release --urls "http://localhost:5000" &
           echo "Waiting for app to start..."
-
           for i in {1..30}; do
             if curl -sSf http://localhost:5000 > /dev/null; then
               echo "App is up!"
@@ -39,78 +49,20 @@ jobs:
             echo "Still waiting..."
             sleep 2
           done
-
           echo "App failed to start in time"
           exit 1
+      # ---------------------------------------
 
-      
+      # ---------- Install Playwright browsers ----------
       - name: Install Playwright browsers
         working-directory: BP_E2E
         run: |
           dotnet build -c Release
           pwsh ./bin/Release/net8.0/playwright.ps1 install --with-deps
+      # -------------------------------------------------
 
-      
-      - name: Run Unit Tests
-        run: dotnet test -c Release --no-build --filter TestCategory!=E2E
-
-      
+      # ---------- Run ONLY E2E tests ----------
       - name: Run Playwright E2E tests
         working-directory: BP_E2E
-        run: dotnet test -c Release --no-build --filter TestCategory=E2E
-
-      
-      - name: Publish Application
-        run: dotnet publish BPCalculator/BPCalculator.csproj -c Release -o ./publish
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: bpapp
-          path: ./publish
-
- 
-  deploy_qa:
-    needs: build_and_package
-    if: github.ref == 'refs/heads/develop'
-    runs-on: ubuntu-latest
-    environment: qa
-
-    steps:
-      - name: Download Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: bpapp
-          path: ./publish
-
-      - name: Deploy to QA Web App
-        uses: azure/webapps-deploy@v3
-        with:
-          app-name: 'bp-qa'  
-          slot-name: 'Production'
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_QA }}
-          package: ./publish
-
- 
-  deploy_prod:
-    needs: build_and_package
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    environment:
-      name: prod
-      url: https://bp-ca-prod.azurewebsites.net  
-
-    steps:
-      - name: Download Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: bpapp
-          path: ./publish
-
-      - name: Deploy to Production Web App
-        uses: azure/webapps-deploy@v3
-        with:
-          app-name: 'bp-ca-prod'  
-          slot-name: 'Production'
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_PROD }}
-          package: ./publish
+        run: dotnet test -c Release --no-build --filter "Category=E2E"
+      # ---------------------------------------
