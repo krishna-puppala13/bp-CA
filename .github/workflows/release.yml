@@ -12,7 +12,7 @@ env:
   PROD_APP_NAME: bp-ca-prod
   PROD_URL: https://bp-ca-prod.azurewebsites.net
 
-# Build and Tests
+# Build and Test
 jobs:
   build_and_prechecks:
     runs-on: ubuntu-latest
