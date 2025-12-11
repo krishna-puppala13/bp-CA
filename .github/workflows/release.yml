@@ -123,7 +123,8 @@ jobs:
           target: 'http://127.0.0.1:5000'
           cmd_options: '-a'
           reports_dir: 'zap-report'
-          allow_issue_writing: false   
+          allow_issue_writing: false      
+          artifact_name: 'zap-scan'  
 
       - name: Upload ZAP Report
         uses: actions/upload-artifact@v4
