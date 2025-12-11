@@ -1,4 +1,4 @@
-name: Release
+name: Build, package and deploy BP app
 
 on:
   push:
@@ -17,7 +17,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'   
+          dotnet-version: '8.0.x'
 
       - name: Restore
         run: dotnet restore
@@ -25,20 +25,29 @@ jobs:
       - name: Build
         run: dotnet build --configuration Release --no-restore
 
-      - name: Test
-        run: dotnet test --configuration Release --no-build
+      
+      - name: Run Unit Tests
+        run: dotnet test --configuration Release --no-build --filter TestCategory!=E2E
 
       
+      - name: Install Playwright Browsers
+        run: pwsh ./BP_E2E/bin/Debug/net8.0/playwright.ps1 install
 
-      - name: Publish app
+     
+      - name: Run E2E Tests
+        run: dotnet test --configuration Release --no-build --filter TestCategory=E2E
+
+      
+      - name: Publish Application
         run: dotnet publish BPCalculator/BPCalculator.csproj -c Release -o ./publish
 
-      - name: Upload artifact
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: bpapp
           path: ./publish
 
+  
   deploy_qa:
     needs: build_and_package
     if: github.ref == 'refs/heads/develop'
@@ -46,7 +55,7 @@ jobs:
     environment: qa
 
     steps:
-      - name: Download artifact
+      - name: Download Artifact
         uses: actions/download-artifact@v4
         with:
           name: bpapp
@@ -60,6 +69,7 @@ jobs:
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_QA }}
           package: ./publish
 
+ 
   deploy_prod:
     needs: build_and_package
     if: github.ref == 'refs/heads/main'
@@ -69,13 +79,13 @@ jobs:
       url: https://bp-ca-prod.azurewebsites.net 
 
     steps:
-      - name: Download artifact
+      - name: Download Artifact
         uses: actions/download-artifact@v4
         with:
           name: bpapp
           path: ./publish
 
-      - name: Deploy to Prod Web App
+      - name: Deploy to Production Web App
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'bp-ca-prod'  
