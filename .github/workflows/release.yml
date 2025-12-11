@@ -1,4 +1,4 @@
-name: Build, test, and deploy BP app
+name: Release
 
 on:
   push:
@@ -22,17 +22,41 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore
 
+      
+      - name: Cache Dependency-Check data
+        uses: actions/cache@v4
+        with:
+          path: ~/.dependency-check
+          key: ${{ runner.os }}-dependency-check
+          restore-keys: |
+            ${{ runner.os }}-dependency-check
+
+      - name: Run OWASP Dependency-Check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: "bp"
+          path: "."
+          format: "HTML"
+          out: "dependency-check-report"
+
+      - name: Upload Dependency-Check report
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-report
+          path: dependency-check-report
+
+      
       - name: Build solution
         run: dotnet build -c Release --no-restore
 
       
       - name: Start BPCalculator web app
         run: |
-          dotnet run --project BPCalculator/BPCalculator.csproj --urls "http://localhost:5000" &
+          dotnet run --project BPCalculator/BPCalculator.csproj --urls "http://0.0.0.0:5000" &
           echo "Waiting for app to start..."
 
           for i in {1..30}; do
-            if curl -sSf http://localhost:5000 > /dev/null; then
+            if curl -sSf http://127.0.0.1:5000 > /dev/null; then
               echo "App is up!"
               exit 0
             fi
@@ -44,20 +68,52 @@ jobs:
           exit 1
 
       
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-cache
+          restore-keys: |
+            ${{ runner.os }}-playwright-cache
+
+     
       - name: Install Playwright browsers
         working-directory: BP_E2E
         run: |
           dotnet build -c Release
           pwsh ./bin/Release/net8.0/playwright.ps1 install --with-deps
 
-      
+     
       - name: Run Unit Tests
         run: dotnet test -c Release --no-build --filter TestCategory!=E2E
 
-     
+      
       - name: Run Playwright E2E tests
         working-directory: BP_E2E
-        run: dotnet test -c Release --no-build --filter TestCategory=E2E
+        run: dotnet test -c Release --no-build --filter "Category=E2E"
+
+      
+      - name: Install k6
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnupg ca-certificates
+          curl https://dl.k6.io/key.gpg | sudo gpg --yes --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6
+
+      
+      - name: Run k6 Performance Test
+        env:
+          BASE_URL: http://127.0.0.1:5000
+        run: |
+          k6 run k6Tests/performance.js | tee k6report.txt
+
+      - name: Upload k6 Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-performance-report
+          path: k6report.txt
 
       
       - name: Publish Application
@@ -69,7 +125,7 @@ jobs:
           name: bpapp
           path: ./publish
 
-  
+ 
   deploy_qa:
     needs: build_and_package
     if: github.ref == 'refs/heads/develop'
@@ -91,7 +147,7 @@ jobs:
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_QA }}
           package: ./publish
 
- 
+  
   deploy_prod:
     needs: build_and_package
     if: github.ref == 'refs/heads/main'
