@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - develop
-      - main
+      - master
 
 jobs:
   build_and_package:
@@ -76,14 +76,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-playwright-cache
 
-     
+      
       - name: Install Playwright browsers
         working-directory: BP_E2E
         run: |
           dotnet build -c Release
           pwsh ./bin/Release/net8.0/playwright.ps1 install --with-deps
 
-     
+      
       - name: Run Unit Tests
         run: dotnet test -c Release --no-build --filter TestCategory!=E2E
 
@@ -116,6 +116,21 @@ jobs:
           path: k6report.txt
 
       
+      - name: OWASP ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.13.0
+        continue-on-error: true
+        with:
+          target: 'http://127.0.0.1:5000'
+          cmd_options: '-a'
+          reports_dir: 'zap-report'
+
+      - name: Upload ZAP Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-report
+          path: zap-report
+
+      
       - name: Publish Application
         run: dotnet publish BPCalculator/BPCalculator.csproj -c Release -o ./publish
 
@@ -125,7 +140,7 @@ jobs:
           name: bpapp
           path: ./publish
 
- 
+  
   deploy_qa:
     needs: build_and_package
     if: github.ref == 'refs/heads/develop'
