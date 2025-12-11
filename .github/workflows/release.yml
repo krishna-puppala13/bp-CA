@@ -12,7 +12,7 @@ env:
   PROD_APP_NAME: bp-ca-prod
   PROD_URL: https://bp-ca-prod.azurewebsites.net
 
-# Build + Tests
+# Build and Tests
 jobs:
   build_and_prechecks:
     runs-on: ubuntu-latest
@@ -29,8 +29,7 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore
 
-      # OWASP DEPENDENCY CHECK
-
+      
       - name: Cache Dependency-Check data
         uses: actions/cache@v4
         with:
@@ -53,18 +52,15 @@ jobs:
           name: dependency-check-report
           path: dependency-check-report
 
-     
-      # BUILD
-
+      
       - name: Build solution
         run: dotnet build -c Release --no-restore
 
-    
-      # UNIT + BDD TESTS 
-
+      
       - name: Run Unit + BDD tests
         run: dotnet test -c Release --no-build --filter TestCategory!=E2E
 
+      
       - name: Publish Application
         run: dotnet publish BPCalculator/BPCalculator.csproj -c Release -o ./publish
 
@@ -74,7 +70,7 @@ jobs:
           name: bpapp
           path: ./publish
 
-#  DEPLOY TO QA 
+# Deploy to QA
   deploy_qa:
     needs: build_and_prechecks
     if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
@@ -96,15 +92,11 @@ jobs:
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_QA }}
           package: ./publish
 
-#  QA TESTS
+
   qa_tests:
     needs: deploy_qa
     if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-
-    env:
-      QA_URL: ${{ env.QA_URL }}
-      BASE_URL: ${{ env.QA_URL }}
 
     steps:
       - name: Checkout code
@@ -115,7 +107,7 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-     
+      
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
@@ -124,18 +116,18 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-playwright-cache
 
-    
+      
       - name: Install Playwright browsers
         working-directory: BP_E2E
         run: |
           dotnet build -c Release
           pwsh ./bin/Release/net8.0/playwright.ps1 install --with-deps
 
-      
+     
       - name: Run Playwright E2E tests against QA
         working-directory: BP_E2E
         env:
-          BASE_URL: ${{ env.BASE_URL }}
+          BASE_URL: ${{ env.QA_URL }}
         run: dotnet test -c Release --no-build --filter "Category=E2E"
 
      
@@ -151,7 +143,7 @@ jobs:
      
       - name: Run k6 Performance Test against QA
         env:
-          BASE_URL: ${{ env.BASE_URL }}
+          BASE_URL: ${{ env.QA_URL }}
         run: |
           k6 run k6Tests/performance.js | tee k6report.txt
 
@@ -169,7 +161,7 @@ jobs:
 
       
       - name: OWASP ZAP Baseline Scan (Docker vs QA URL)
-        continue-on-error: true  
+        continue-on-error: true   
         env:
           TARGET_URL: ${{ env.QA_URL }}
         run: |
@@ -184,9 +176,9 @@ jobs:
           name: zap-report
           path: zap-report
 
-#  DEPLOY TO PROD 
+# Deploy to prod
   deploy_prod:
-    needs: 
+    needs:
       - build_and_prechecks
       - qa_tests
     if: github.ref == 'refs/heads/main'
