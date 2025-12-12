@@ -51,8 +51,7 @@ export default function () {
     }
   );
 
-  // Optional debug: uncomment this to see actual status codes
-  // console.log(`GET status = ${resGet.status}, POST status = ${resPost.status}`);
+  
 
   check(resPost, {
     "POST returned OK or redirect": (r) => r.status === 200 || r.status === 302,
