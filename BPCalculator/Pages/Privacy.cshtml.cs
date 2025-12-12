@@ -19,6 +19,7 @@ namespace BPCalculator.Pages
 
         public void OnGet()
         {
+            // No logic required as this is a static privacy page.
         }
     }
 }
