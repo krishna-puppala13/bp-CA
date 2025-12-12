@@ -178,8 +178,9 @@ namespace BPUnitTests
 
             Assert.IsFalse(isValid, "Expected validation to fail when Systolic <= Diastolic.");
             Assert.IsTrue(results.Exists(r =>
-                r.ErrorMessage.Contains("Systolic value must be greater than Diastolic value")),
-                "Expected custom validation message for systolic/diastolic rule.");
+                    (r.ErrorMessage ?? string.Empty).Contains("Systolic value must be greater than Diastolic value")),
+                    "Expected custom validation message for systolic/diastolic rule.");
+
         }
     }
 }
