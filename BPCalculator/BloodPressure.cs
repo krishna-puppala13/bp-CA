@@ -34,7 +34,7 @@ namespace BPCalculator
             {
                 yield return new ValidationResult(
                     "Systolic value must be greater than Diastolic value",
-                     new string[] { }
+                     Array.Empty<string>()
                 );
             }
         }
