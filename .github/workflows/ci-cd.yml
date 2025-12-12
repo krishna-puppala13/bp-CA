@@ -1,17 +1,22 @@
 name: CI-CD
 
 on:
-  workflow_dispatch:   
+  workflow_dispatch:
 
 env:
   PROD_APP_NAME: bp-app-prod
   PROD_URL: https://bp-app-prod.azurewebsites.net
   STAGING_SLOT_NAME: staging
-  STAGING_URL: https://bp-app-prod-staging.azurewebsites.net   
+  STAGING_URL: https://bp-app-prod-staging.azurewebsites.net
   RESOURCE_GROUP: bp-ca
 
-#  BUILD + Tests
+  SONAR_PROJECT_KEY: krishna-puppala13_bp-CA
+  SONAR_ORG: krishna-puppala13
+  SONAR_HOST_URL: https://sonarcloud.io
+
 jobs:
+  
+  # 1) CI: BUILD + TEST
   build_and_prechecks:
     runs-on: ubuntu-latest
 
@@ -24,12 +29,20 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
+      
+      # SONAR: install scanner
+
+      - name: Install SonarScanner for .NET
+        run: |
+          dotnet tool install --global dotnet-sonarscanner
+          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+
       - name: Restore dependencies
         run: dotnet restore
 
-      
-      # OWASP DEPENDENCY CHECK
      
+      # OWASP DEPENDENCY CHECK (cache + report)
+      
       - name: Cache Dependency-Check data
         uses: actions/cache@v4
         with:
@@ -53,19 +66,43 @@ jobs:
           path: dependency-check-report
 
       
+      # SONAR: Begin
+      
+      - name: SonarCloud - Begin analysis
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          dotnet sonarscanner begin \
+            /k:"${{ env.SONAR_PROJECT_KEY }}" \
+            /o:"${{ env.SONAR_ORG }}" \
+            /d:sonar.host.url="${{ env.SONAR_HOST_URL }}" \
+            /d:sonar.login="$SONAR_TOKEN" \
+            /d:sonar.cs.opencover.reportsPaths="**/TestResults/*/coverage.opencover.xml" \
+            /d:sonar.coverage.exclusions="**/Program.cs,**/Startup.cs,**/Pages/*.cs,**/Pages/*.cshtml,**/performance.js"
+
+      
       # BUILD
       
-      - name: Build solution
+      - name: Build solution (Release)
         run: dotnet build -c Release --no-restore
 
       
-      # UNIT + BDD TESTS 
-      - name: Run Unit + BDD tests
-        run: dotnet test -c Release --no-build --filter TestCategory!=E2E
+      # TEST with coverage (non-E2E)
+      
+      - name: Test with coverage (non-E2E)
+        run: dotnet test -c Release --no-build --collect:"XPlat Code Coverage;Format=opencover" --logger "trx" --filter "TestCategory!=E2E"
 
-     
-      # PUBLISH  + ARTIFACT
+      
+      # SONAR: End
+      
+      - name: SonarCloud - End analysis
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: dotnet sonarscanner end /d:sonar.login="$SONAR_TOKEN"
 
+      
+      # PUBLISH + ARTIFACT
+      
       - name: Publish Application
         run: dotnet publish BPCalculator/BPCalculator.csproj -c Release -o ./publish
 
@@ -75,13 +112,14 @@ jobs:
           name: bpapp
           path: ./publish
 
-#  DEPLOY TO STAGING SLOT (GREEN) — for both develop and master
+  
+  # 2) DEPLOY TO STAGING SLOT (develop OR master)
+  
   deploy_staging:
     needs: build_and_prechecks
     runs-on: ubuntu-latest
-   
     if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/master'
-    environment: staging   
+    environment: staging
 
     steps:
       - name: Download Artifact
@@ -93,12 +131,14 @@ jobs:
       - name: Deploy to Staging Slot
         uses: azure/webapps-deploy@v3
         with:
-          app-name: ${{ env.PROD_APP_NAME }}          
-          slot-name: ${{ env.STAGING_SLOT_NAME }}     
+          app-name: ${{ env.PROD_APP_NAME }}
+          slot-name: ${{ env.STAGING_SLOT_NAME }}
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_STAGING }}
           package: ./publish
 
-#  STAGING TESTS: E2E + k6 + ZAP against STAGING_URL
+  
+  # 3) STAGING TESTS (E2E + k6 + ZAP)
+  
   staging_tests:
     needs: deploy_staging
     runs-on: ubuntu-latest
@@ -113,7 +153,7 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      
+      # Cache Playwright browsers
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
@@ -122,24 +162,21 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-playwright-cache
 
-     
-      # INSTALL PLAYWRIGHT BROWSERS
-      
+      # Install Playwright browsers
       - name: Install Playwright browsers
         working-directory: BP_E2E
         run: |
           dotnet build -c Release
           pwsh ./bin/Release/net8.0/playwright.ps1 install --with-deps
 
-      
-      # E2E TESTS 
+      # Run E2E tests against staging URL
       - name: Run Playwright E2E tests against Staging
         working-directory: BP_E2E
         env:
           BASE_URL: ${{ env.STAGING_URL }}
         run: dotnet test -c Release --no-build --filter "Category=E2E"
 
-     
+      # Install k6
       - name: Install k6
         run: |
           sudo apt-get update
@@ -149,8 +186,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y k6
 
-   
-      # k6 PERFORMANCE TESTS 
+      # Run k6 against staging
       - name: Run k6 Performance Test against Staging
         env:
           BASE_URL: ${{ env.STAGING_URL }}
@@ -163,16 +199,15 @@ jobs:
           name: k6-performance-report
           path: k6report.txt
 
-  
+      # Prepare ZAP report dir
       - name: Prepare ZAP report directory
         run: |
           mkdir -p zap-report
           chmod 777 zap-report
 
-    
-      # OWASP ZAP BASELINE 
+      # ZAP baseline against staging
       - name: OWASP ZAP Baseline Scan (Docker vs Staging URL)
-        continue-on-error: true  
+        continue-on-error: true
         env:
           TARGET_URL: ${{ env.STAGING_URL }}
         run: |
@@ -187,7 +222,9 @@ jobs:
           name: zap-report
           path: zap-report
 
-#  BLUE-GREEN: SLOT SWAP TO PROD — only on master, after staging tests, with manual approval
+  
+  # 4) BLUE-GREEN SLOT SWAP TO PROD (master only + manual approval)
+  
   swap_staging_to_prod:
     needs:
       - build_and_prechecks
@@ -195,7 +232,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/master'
     environment:
-      name: prod          
+      name: prod
       url: ${{ env.PROD_URL }}
 
     steps:
