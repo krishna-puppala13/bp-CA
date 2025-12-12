@@ -63,7 +63,7 @@ namespace BPCalculator.ReqnrollTests
         public void ThenItShouldContain(string message)
         {
             string messages = string.Join(" | ", _validationResults);
-            StringAssert.Contains(messages, message);
+            Assert.Contains(message, messages);
         }
         
         [Then(@"the advice message should be ""(.*)""")]
